@@ -355,6 +355,7 @@ data Error =
   | NonSpeculatableFieldError FieldDecl
   | CannotHaveRestrictedFieldsError Type
   | RestrictedFieldLookupError Name Type
+  | RestrictedMethodCallError Name Type
   | NonSpeculatableTargetError
   | NonStableCatError Name
   | MalformedCatError
@@ -985,6 +986,9 @@ instance Show Error where
     show (RestrictedFieldLookupError f ty) =
         printf "Field '%s' is restricted in type '%s'"
                (show f) (show ty)
+    show (RestrictedMethodCallError m ty) =
+        printf "Cannot call method '%s' on restricted type '%s'"
+               (show m) (show ty)
     show NonSpeculatableTargetError =
         "Can only speculate on field accesses"
     show (NonStableCatError f) =
