@@ -791,7 +791,8 @@ isLinearType =
       | otherwise = return False
 
 isSubordinateType :: Type -> TypecheckM Bool
-isSubordinateType = partly (return . isSubordinateSingleType)
+isSubordinateType =
+  partly (\ty -> return (isSubordinateSingleType ty || isSpineSingleType ty))
 
 isEncapsulatedType :: Type -> TypecheckM Bool
 isEncapsulatedType =

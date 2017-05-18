@@ -1,17 +1,21 @@
-all: oo proc
+all: StackDriver QueueDriver ListDriver
 
-oo:
-	make -C oo
+run: all
+	@echo "Running StackDriver..."
+	@./StackDriver
+	@echo "Running QueueDriver..."
+	@./QueueDriver
+	@echo "Running ListDriver..."
+	@./ListDriver
 
-proc:
-	make -C proc
+StackDriver: StackDriver.enc Stack.enc
+	encorec $<
 
-run:
-	make -C oo run
-	make -C proc run
+QueueDriver: QueueDriver.enc Queue.enc
+	encorec $<
+
+ListDriver: ListDriver.enc List.enc
+	encorec $<
 
 clean:
-	make -C oo clean
-	make -C proc clean
-
-.PHONY: all oo proc run
+	rm -rf StackDriver QueueDriver ListDriver
