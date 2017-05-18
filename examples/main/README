@@ -1,9 +1,7 @@
 This directory contains all the examples from the main paper.
-Since Encore is an object oriented language while LOLCAT is
-presented in a procedural language, we provide both "procedural"
-versions that resemble the language from the paper (see proc), as
-well as "object oriented" versions that are written in a style
-more suitable for Encore (see oo). The examples are:
+Since Encore is an object oriented language, we provide versions
+that are written in a style more suitable for Encore. The
+examples are:
 
 * Treiber Stack (Stack.enc)
 
