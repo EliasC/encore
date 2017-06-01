@@ -1949,7 +1949,8 @@ instance Checkable Expr where
            let targetType = AST.getType target
                argType = AST.getType eArg
            fdecl <- findField targetType name
-           when (isVarField fdecl) $
+           when (isVarField fdecl &&
+                 not (isPristineSingleType $ AST.getType target)) $
                   tcError $ NonSpeculatableFieldError fdecl
            if isRefType argType
            then do
