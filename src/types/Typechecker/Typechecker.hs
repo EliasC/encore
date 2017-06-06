@@ -725,7 +725,7 @@ instance Checkable Expr where
                 argTypes = map ptype $ hparams header
                 resultType = htype header
 
-            Just flds <- asks . fields $ unrestricted calledType
+            flds <- findAccessedFields calledType (name mcall)
             let varFields = filter isVarField flds
                 restricted = barredFields calledType
             unless (null $ intersect (map fname varFields) restricted) $

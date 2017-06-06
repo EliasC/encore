@@ -27,6 +27,7 @@ module Typechecker.Util(TypecheckM
                        ,findMethodWithCalledType
                        ,findCapability
                        ,findVar
+                       ,findAccessedFields
                        ,propagateResultType
                        ,unifyTypes
                        ,uniquifyTypeVars
@@ -552,6 +553,30 @@ findVar x = do
       tcError $ AmbiguousNameError x l
     Nothing ->
       tcError $ UnknownNamespaceError (qnspace x)
+
+findAccessedFields :: Type -> Name -> TypecheckM [FieldDecl]
+findAccessedFields ty m
+  | isClassType ty = do
+    cap <- findCapability ty
+    let traits = typesFromCapability cap
+    holdingTrait <-
+      findM (liftM isJust . liftM asks (`methodAndCalledTypeLookup` m)) traits
+    case holdingTrait of
+      Just trait -> do
+        Just [cdecl@Class{ccomposition, cfields}] <- asks $ classLookup ty
+        let extendedTraits = extendedTraitsFromComposition ccomposition
+            Just extension = lookup trait extendedTraits
+            (extFieldNames, _) = partitionTraitExtensions extension
+            extFields = mapMaybe (\f -> find ((== f) . fname) cfields)
+                                 extFieldNames
+        Just tfields <- asks $ fields ty
+        return $ tfields ++ extFields
+      Nothing -> getFields ty
+  | otherwise =  getFields ty
+  where
+    getFields ty = do
+      Just flds <- asks $ fields ty
+      return flds
 
 getImplementedTraits :: Type -> TypecheckM [Type]
 getImplementedTraits ty
