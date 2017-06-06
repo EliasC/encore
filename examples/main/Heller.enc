@@ -1,0 +1,190 @@
+-- The remove procedure of a lazy concurrent list-based set, based on
+-- http://people.csail.mit.edu/shanir/publications/Lazy_Concurrent.pdf
+-- We have added a (linear) element to each entry in addition to
+-- the immutable key.
+
+linear class Elem : Id
+  val elem : int
+  def init(elem : int) : unit
+    this.elem = elem
+  end
+end
+
+spine class EntryRef
+  var next   : Entry
+  val nextRO : Entry | elem -- An alias of next without ownership
+  val taken  : bool
+end
+
+spine trait Lockable
+  require spec succ : EntryRef
+
+  -- Switches the succ field for one that only contains the
+  -- read-only reference. Returns the old one
+  def lock() : EntryRef
+    val newSucc = new EntryRef()
+    newSucc.taken = true
+    while true do
+      val oldSucc = speculate this.succ -- EntryRef | next
+      if (not oldSucc.taken) then
+        newSucc.nextRO = (speculate this.succ).nextRO
+        if(CAT(this.succ, oldSucc, newSucc)) then
+          return consume oldSucc -- EntryRef (after successful CAT)
+        end
+      end
+    end
+    null -- This should never happen
+  end
+
+  -- Replace the succ field of e by succ
+  def unlock(succ : EntryRef) : unit
+    val oldSucc = speculate this.succ
+    if(not CAT(this.succ, oldSucc, succ)) then
+      assertTrue(false, "Lock was not taken!")
+    end
+  end
+end
+
+spine class Entry : Lockable + Id
+  val  key    : int
+  var  elem   : Elem
+  spec marked : bool
+  spec succ   : EntryRef
+
+  def init(key : int, var elem : Elem) : unit
+    this.key = key
+    this.elem = consume elem
+  end
+end
+
+-- Make sure that two nodes are not logically deleted, and that
+-- they are adjacent
+fun validate(pred : Entry | elem, curr : Entry | elem) : bool
+  (not pred.marked) && (not curr.marked) && (speculate pred.succ).nextRO == curr
+end
+
+trait Add
+  require val head : Entry | elem
+
+  -- Try to add (key, value) to the list. Returns Nothing if
+  -- successful, otherwise Just(value)
+  def add(key : int, var value : Elem) : Maybe[Elem]
+    while (true) do
+      var pred = speculate this.head
+      var curr = (speculate pred.succ).nextRO
+      while (curr.key < key) do
+        pred = curr
+        curr = (speculate pred.succ).nextRO
+      end
+      -- Assert ownership of reified entry references
+      var locked_pred = pred.lock() -- EntryRef
+      var locked_curr = curr.lock() -- EntryRef
+
+      if validate(pred, curr) then
+        if (curr.key == key) then -- present
+          pred.unlock(consume locked_pred)
+          curr.unlock(consume locked_curr)
+          return Just(consume value)
+        else -- not present
+          var entry = new Entry(key, consume value)
+          var ref = new EntryRef()
+          ref.next = consume locked_pred.next
+          ref.nextRO = locked_pred.nextRO
+          entry.succ = consume ref
+          var newPred = new EntryRef()
+          newPred.next = consume entry
+          newPred.nextRO = speculate newPred.next
+          curr.unlock(consume locked_curr)
+          pred.unlock(consume newPred)
+          return Nothing
+        end
+      end
+      pred.unlock(consume locked_pred)
+      curr.unlock(consume locked_curr)
+    end
+    Nothing -- This should never happen
+  end
+end
+
+trait Remove
+  require val head : Entry | elem
+
+  def remove(key : int) : Maybe[Elem]
+    while(true) do
+      var pred = this.head                    -- Entry | elem
+      var curr = (speculate pred.succ).nextRO -- Entry | elem
+      while curr.key < key do
+        pred = curr
+        curr = (speculate pred.succ).nextRO
+      end
+
+      -- Assert ownership of reified entry references
+      var locked_pred = pred.lock() -- EntryRef
+      var locked_curr = curr.lock() -- EntryRef
+      if (validate(pred, curr)) then
+        if (curr.key != key) then
+          pred.unlock(consume locked_pred)
+          curr.unlock(consume locked_curr)
+          return Nothing
+        else
+          val fls = false
+          val tru = true
+          CAT(curr.marked, fls, tru) -- Will always succeed
+          var ref = new EntryRef()
+          ref.next = consume locked_curr.next
+          ref.nextRO = speculate ref.next
+          curr.unlock(consume locked_curr)
+          pred.unlock(consume ref)
+          return Just(consume locked_pred.next.elem)
+        end
+      end
+      pred.unlock(consume locked_pred)
+      curr.unlock(consume locked_curr)
+    end
+    Nothing -- This should never happen
+  end
+end
+
+trait Contains
+  require val head : Entry | elem
+  def contains(key : int) : bool
+    var curr = this.head
+    while curr.key < key do
+      curr = (speculate curr.succ).nextRO
+    end
+    return curr.key == key && not curr.marked
+  end
+end
+
+lockfree class List : Add * Remove * Contains
+  val head : Entry | elem
+  def init(minKey : int, maxKey : int) : unit
+    var head = new Entry(minKey, null)
+    var tail = new Entry(maxKey, null)
+    tail.succ = new EntryRef()
+    var ref = new EntryRef()
+    ref.next = consume tail
+    ref.nextRO = speculate ref.next
+    head.succ = consume ref
+    this.head = consume head
+  end
+end
+
+active class Main
+  def main() : unit
+    val l = new List(-1, 100000)
+    l.add(1, new Elem(1))
+    l.add(2, new Elem(2))
+    l.add(3, new Elem(3))
+    assertTrue(l.contains(1))
+    assertTrue(l.contains(2))
+    assertTrue(l.contains(3))
+    assertFalse(l.contains(4))
+    l.remove(2)
+    assertTrue(l.contains(1))
+    assertFalse(l.contains(2))
+    assertTrue(l.contains(3))
+    assertFalse(l.contains(4))
+    println("Done!")
+  end
+end
