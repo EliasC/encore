@@ -209,7 +209,7 @@ safeToReadOnce :: Environment -> Bool
 safeToReadOnce = safeToReadOnceBT . bt
 
 fields :: Type -> Environment -> Maybe [FieldDecl]
-fields ty env
+fields ty env@Env{namespaceTable}
   | isTraitType ty =
     case traitLookup ty env of
       Just [trait] -> do
@@ -248,7 +248,8 @@ fields ty env
             stabilized   = map (stabilize transferRestricted) actualFields
         in filter (\f -> fname f `notElem` barred) stabilized
       translateField bindings f@Field{ftype} =
-          f{ftype = replaceTypeVars bindings ftype}
+          f{ftype = translateTypeNamespace namespaceTable $
+                    replaceTypeVars bindings ftype}
       stabilize fs f
           | fname f `elem` fs = f{fmut = Val}
           | otherwise = f

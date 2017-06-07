@@ -57,7 +57,7 @@ import Text.Printf (printf)
 import Debug.Trace
 import Control.Monad.Reader
 import Control.Monad.Except
-import Control.Arrow(second)
+import Control.Arrow(first, second)
 import Control.Monad.State
 
 -- Module dependencies
@@ -565,7 +565,8 @@ findAccessedFields ty m
       Just trait -> do
         Just [cdecl@Class{ccomposition, cfields}] <- asks $ classLookup ty
         let extendedTraits = extendedTraitsFromComposition ccomposition
-            Just extension = lookup trait extendedTraits
+            Just extension = lookup (getId trait) $
+                             map (first getId) extendedTraits
             (extFieldNames, _) = partitionTraitExtensions extension
             extFields = mapMaybe (\f -> find ((== f) . fname) cfields)
                                  extFieldNames

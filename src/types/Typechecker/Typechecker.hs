@@ -222,7 +222,9 @@ meetRequiredFields cFields trait = do
       if isNothing result then
           tcError $ MissingFieldRequirementError expField trait
       else if not $ cField `matchesMod` expField then
-          tcError $ ModifierMismatchError cField expField trait
+          if isVarField expField && not (isVarField cField)
+          then tcError $ RequiredFieldMutabilityError trait cField
+          else tcError $ ModifierMismatchError cField expField trait
       else if isValField expField then
           unlessM (cFieldType `subtypeOf` expected) $
               tcError $ CovarianceViolationError cField expected trait
