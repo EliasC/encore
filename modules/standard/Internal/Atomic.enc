@@ -1,0 +1,38 @@
+module Atomic
+import Std
+
+EMBED
+extern void ponyint_messageq_init(void *q);
+END
+
+-- TODO: Tidy up this crap
+local class AtomicWrapper[active t]
+  -- Hack to get a 16 byte wide field
+  val queue1 : uint
+  val queue2 : uint 
+  val target : t
+  def init(target : t) : unit
+    this.target = target
+    EMBED (unit)
+      ponyint_messageq_init(&#{this.queue1});
+    END
+    stupid_cast(target) ! atomic(this.get_queue())
+  where
+    fun stupid_cast(a : t) : Actor
+      EMBED (Actor)
+        #{a}.p;
+      END
+    end
+  end
+  def private get_queue() : AtomicQ
+    EMBED (AtomicQ)
+      &#{this.queue1};
+    END
+  end
+end
+
+active class Main
+  def main() : unit
+    ()
+  end
+end

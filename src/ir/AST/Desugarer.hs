@@ -106,8 +106,8 @@ desugarProgram p@(Program{traits, classes, functions}) =
   -- Automatically give await and supend to active classes
   -- Then the Actor trait is in place, this desugaring step will be changed
   -- so that the Actor trait is included instead
-    desugarClass c@(Class{cmeta, cmethods})
-      | isActive c = c{cmethods = map desugarMethod (await:suspend:cmethods)}
+    desugarClass c@(Class{cmeta, cmethods, ccomposition})
+      | isActive c = c{cmethods = map desugarMethod (await:suspend:cmethods), ccomposition=Just ccomposition'}
       where
         await = Method{mmeta
                       ,mimplicit = True
@@ -135,7 +135,12 @@ desugarProgram p@(Program{traits, classes, functions}) =
         pmeta = Meta.meta (Meta.getPos cmeta)
         emeta = Meta.meta (Meta.getPos cmeta)
         mmeta = Meta.meta (Meta.getPos cmeta)
-
+        actorTrait = traitType "Actor" []
+        ccomposition' = case ccomposition of
+          Nothing -> TraitLeaf{tcname = actorTrait, tcext = []}
+          Just comp -> Disjunction{tcleft = TraitLeaf{tcname = actorTrait,
+                                                       tcext = []}, tcright = comp}
+                       
     desugarClass c@(Class{cmethods})
       | isPassive c || isShared c = c{cmethods = map desugarMethod cmethods}
 
