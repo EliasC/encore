@@ -2,9 +2,16 @@ module Internal
 
 typedef AtomicQ = EMBED void * END
 
-active class AtomicWrapper[t]
+local class AtomicWrapper[active t]
   val queue : AtomicQ
-  def init() : unit
-    ()
+  val target : t
+  def init(target : t) : unit
+    this.target = target
+    this.queue = create_atomic_queue()
+    target ! atomic(queue)
+  where
+    fun create_atomic_queue() : AtomicQ
+      null
+    end
   end
 end
