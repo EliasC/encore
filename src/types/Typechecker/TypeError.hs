@@ -252,6 +252,8 @@ data Error =
   | ValFieldAssignmentError Name Type
   | UnboundVariableError QualifiedName
   | BuriedVariableError QualifiedName
+  | ConsumedVariableError QualifiedName
+  | ShadowedVariableError QualifiedName
   | ObjectCreationError Type
   | NonIterableError Type
   | EmptyArrayLiteralError
@@ -298,7 +300,7 @@ data Error =
   | ModeOverrideError Type
   | CannotConsumeError Expr
   | CannotConsumeTypeError Expr
-  | ImmutableConsumeError Expr
+  | ImmutableFieldConsumeError Expr
   | CannotGiveReadModeError Type
   | CannotGiveSharableModeError Type
   | NonValInReadContextError Type
@@ -562,6 +564,13 @@ instance Show Error where
         printf "Unbound variable '%s'" (show name)
     show (BuriedVariableError name) =
         printf "Variable '%s' cannot be accessed during borrowing" (show name)
+    show (ConsumedVariableError name) =
+        printf ("Variable '%s' has been consumed and may not " ++
+                "be accessed until it has been re-assigned")
+               (show name)
+    show (ShadowedVariableError name)
+      | isLocalQName name = printf "Cannot shadow variable '%s'" (show name)
+      | otherwise = printf "Cannot shadow function name '%s'" (show name)
     show (ObjectCreationError ty)
         | isMainType ty = "Cannot create additional Main objects"
         | isCapabilityType ty =
@@ -734,13 +743,11 @@ instance Show Error where
     show (CannotConsumeError expr) =
         printf "Cannot consume '%s'" (show (ppSugared expr))
     show (CannotConsumeTypeError expr) =
+        -- TODO: Only happens for fields
         printf ("Cannot consume '%s' of type '%s'. " ++
                 "Consider using a Maybe-type")
                (show (ppSugared expr)) (show (getType expr))
-    show (ImmutableConsumeError expr)
-       | VarAccess{} <- expr =
-           printf "Cannot consume immutable variable '%s'"
-                  (show (ppSugared expr))
+    show (ImmutableFieldConsumeError expr)
        | FieldAccess{} <- expr =
            printf "Cannot consume immutable field '%s'"
                   (show (ppSugared expr))

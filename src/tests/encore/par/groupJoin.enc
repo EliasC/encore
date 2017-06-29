@@ -42,9 +42,9 @@ active class Main
                           fun (s1 : String, s2 : String) => s1.compare(s2))
     for elem <- extract(query) do
       match elem with
-        case (name, pets) =>
+        case (name, pets') =>
           println("{}:", name)
-          for pet <- extract(pets) do
+          for pet <- extract(pets') do
             println("{}", pet)
           end
         end

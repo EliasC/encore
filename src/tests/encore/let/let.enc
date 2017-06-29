@@ -6,13 +6,13 @@ active class Main
   end
   def foo(x : int) : unit
     let
-      x = "Hello"
+      x1 = "Hello"
     in
-      println(x)
+      println(x1)
       let
-        x = "Ponyworld!"
+        x2 = "Ponyworld!"
       in
-        println(x)
+        println(x2)
       end
     end
   end

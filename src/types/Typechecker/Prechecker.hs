@@ -34,12 +34,12 @@ import Typechecker.Util
 
 -- | The top-level type checking function
 precheckProgram :: Map FilePath LookupTable -> Program ->
-                   (Either TCError Program, [TCWarning])
+                   (Either TCError Program, ([TCWarning], [Name]))
 precheckProgram table p =
   let env = buildEnvironment table p
       readerVar = runReaderT (doPrecheck p) env
       exceptVar = runExceptT readerVar
-  in runState exceptVar []
+  in runState exceptVar ([], [])
 
 class Precheckable a where
     doPrecheck :: a -> TypecheckM a

@@ -4,9 +4,9 @@ fun inc(x : int, y : int) : int
   x + y
 end
 
-fun generateParWithFutures(max : int, option : Maybe[String]) : Par[String]
+fun generateParWithFutures(maxN : int, option : Maybe[String]) : Par[String]
   var p = empty[String]()
-  repeat i <- max do
+  repeat i <- maxN do
     val s = match option with
               case Just(x) =>
                 x

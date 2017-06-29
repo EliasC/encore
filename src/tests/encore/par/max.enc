@@ -1,16 +1,16 @@
 import ParT.ParT
 
-fun liftValues(max : int) : Par[int]
+fun liftValues(maxN : int) : Par[int]
   var p = empty[int]()
-  repeat i <- max do
+  repeat i <- maxN do
     p = p ||| liftv(i)
   end
   p
 end
 
-fun liftFutureValues(max : int) : Par[String]
+fun liftFutureValues(maxN : int) : Par[String]
   var p = empty[String]()
-  repeat i <- max do
+  repeat i <- maxN do
     p = p ||| liftf(new T!set(string_from_int(i)))
   end
   p

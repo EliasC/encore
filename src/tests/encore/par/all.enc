@@ -1,4 +1,4 @@
-import ParT.ParT
+import ParT.ParT hiding(max)
 
 fun liftValues(max : int) : Par[int]
   var p = empty[int]()

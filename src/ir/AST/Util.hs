@@ -19,6 +19,7 @@ module AST.Util(
     , markStatsInBody
     , isStatement
     , isForwardMethod
+    , hasNonTerminatingPath
     ) where
 
 import qualified Data.List as List
@@ -457,7 +458,7 @@ markAsExpr = mark asExpr
 -- Traverses an AST tree and marks nodes as statements or expressions
 mark :: (Expr -> Expr) -> Expr -> Expr
 mark asParent s@Seq{eseq} =
-  asParent s{eseq=(map markAsStat $ init eseq) ++ [mark asParent $ last eseq]}
+  asParent s{eseq=map markAsStat (init eseq) ++ [mark asParent $ last eseq]}
 mark asParent s@IfThenElse{cond, thn, els} =
   asParent s{cond=markAsExpr cond, thn=mark asParent thn, els=mark asParent els}
 mark asParent s@Async{body} = asParent s{body=mark asParent body}
@@ -480,3 +481,17 @@ mark asParent s =
 
 isForwardMethod :: MethodDecl -> Bool
 isForwardMethod mdecl = not . null . (filter isForward) . mbody $ mdecl
+
+
+-- | Returns @True@ if there is an execution path through the
+-- expression that does not hit a return statement.
+hasNonTerminatingPath :: Expr -> Bool
+hasNonTerminatingPath Return{} = False
+hasNonTerminatingPath IfThenElse{cond, thn, els} =
+  hasNonTerminatingPath cond &&
+  (hasNonTerminatingPath thn || hasNonTerminatingPath els)
+hasNonTerminatingPath Match{arg, clauses} =
+  hasNonTerminatingPath arg &&
+  any hasNonTerminatingPath (map mchandler clauses)
+hasNonTerminatingPath e =
+  all hasNonTerminatingPath $ getChildren e

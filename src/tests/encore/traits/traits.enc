@@ -1,10 +1,3 @@
-fun push_to(x : Push) : local ((int) -> unit)
-  let
-    y = x
-  in
-    fun (n : int) => y.push(n)
-  end
-end
 fun foo(x : Pop) : unit
   println(x.pop())
 end
@@ -63,7 +56,7 @@ active class Main
       x = new Stack
       y = new Stack
       driver = new Driver
-      push_to = fun (p : Push) => fun (x : int) => p.push(x)
+      push_to = fun (p : Push) => fun (n : int) => p.push(n)
       pushY = push_to(y)
     in
       pushY(100)

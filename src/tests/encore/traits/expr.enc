@@ -145,8 +145,8 @@ active class Main
     val x = new Variable("x")
     val e = new Subtraction(x, new Addition(two, minusTwo))
     match e.eval() with
-      case Var(x) =>
-        println("Simplified to '{}'", x)
+      case Var(x') =>
+        println("Simplified to '{}'", x')
       end
 
     end

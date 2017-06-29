@@ -12,6 +12,10 @@ module Typechecker.Util(TypecheckM
                        ,pushError
                        ,tcWarning
                        ,pushWarning
+                       ,consume
+                       ,unconsume
+                       ,forgetConsumedVariables
+                       ,isConsumed
                        ,resolveType
                        ,resolveTypeAndCheckForLoops
                        ,findFormalRefType
@@ -26,6 +30,7 @@ module Typechecker.Util(TypecheckM
                        ,findMethodWithCalledType
                        ,findCapability
                        ,findVar
+                       ,assertUnbound
                        ,propagateResultType
                        ,unifyTypes
                        ,uniquifyTypeVars
@@ -54,7 +59,7 @@ import Text.Printf (printf)
 import Debug.Trace
 import Control.Monad.Reader
 import Control.Monad.Except
-import Control.Arrow(second)
+import Control.Arrow(first, second)
 import Control.Monad.State
 
 -- Module dependencies
@@ -99,7 +104,7 @@ concatMapM op = foldr f (return [])
 -- of return type @TypecheckM Bar@ may read from an 'Environment'
 -- and returns a @Bar@ or throws a typechecking exception.
 type TypecheckM a =
-    forall m . (MonadState [TCWarning] m,
+    forall m . (MonadState ([TCWarning], [Name]) m,
                 MonadError TCError m,
                 MonadReader Environment m) => m a
 
@@ -114,9 +119,23 @@ pushError expr err = local (pushBT expr) $ tcError err
 
 tcWarning wrn =
     do bt <- asks backtrace
-       modify (TCWarning bt wrn:)
+       modify $ first (TCWarning bt wrn:)
 
 pushWarning expr wrn = local (pushBT expr) $ tcWarning wrn
+
+consume :: Name -> TypecheckM ()
+consume x = modify $ second (x:)
+
+unconsume :: Name -> TypecheckM ()
+unconsume x = modify $ second (filter (/= x))
+
+forgetConsumedVariables :: TypecheckM ()
+forgetConsumedVariables = modify $ second (const [])
+
+isConsumed :: Name -> TypecheckM Bool
+isConsumed x = do
+  xs <- gets snd
+  return $ x `elem` xs
 
 checkValidUseOfBreak = Typechecker.TypeError.validUseOfBreak . bt
 checkValidUseOfContinue = Typechecker.TypeError.validUseOfContinue . bt
@@ -494,6 +513,14 @@ findVar x = do
       tcError $ AmbiguousNameError x l
     Nothing ->
       tcError $ UnknownNamespaceError (qnspace x)
+
+assertUnbound x = do
+  result <- findVar (qLocal x)
+  case result of
+    Nothing -> return ()
+    Just (qname, _) ->
+      unless ((head . show $ qnlocal qname) == '_') $
+             tcError $ ShadowedVariableError qname
 
 getImplementedTraits :: Type -> TypecheckM [Type]
 getImplementedTraits ty

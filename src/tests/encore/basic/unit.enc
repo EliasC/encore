@@ -11,9 +11,9 @@ active class Main
     var unit1 = ()
     val unit2 = ()
     val x = new Foo
-    val f = fun (x : unit)
+    val f = fun (y : unit)
               println("Got unit")
-              x
+              y
             end
     x ! foo(unit1)
     f(unit2)

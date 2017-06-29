@@ -99,74 +99,47 @@ fun testGetNextNode() : bool
   end
 end
 fun testLookup() : bool
-  let
-    os = get123()
-  in
-    let
-      mx = os.lookup(1)
-    in
-      match mx with
-        case Just(x) =>
-          x == 1
-        end
-        case Nothing =>
-          false
-        end
+  val os = get123()
+  match os.lookup(1) with
+    case Just(x) =>
+      x == 1
+    end
+    case Nothing =>
+      false
+    end
+  end &&
+  match os.lookup(2) with
+    case Just(x) =>
+      x == 2
+    end
+    case Nothing =>
+      false
+    end
+  end &&
+  match os.lookup(3) with
+    case Just(x) =>
+      x == 3
+    end
+    case Nothing =>
+      false
+    end
 
-      end && let
-               mx = os.lookup(2)
-             in
-               match mx with
-                 case Just(x) =>
-                   x == 2
-                 end
-                 case Nothing =>
-                   false
-                 end
-
-               end && let
-                        mx = os.lookup(3)
-                      in
-                        match mx with
-                          case Just(x) =>
-                            x == 3
-                          end
-                          case Nothing =>
-                            false
-                          end
-
-                        end && let
-                                 mx = os.lookup(4)
-                               in
-                                 match mx with
-                                   case Just(x) =>
-                                     false
-                                   end
-                                   case Nothing =>
-                                     true
-                                   end
-
-                                 end
-                               end
-                      end
-             end
-    end && let
-             os = getEmpty()
-           in
-             let
-               mx = os.lookup(1)
-             in
-               match mx with
-                 case Just(x) =>
-                   false
-                 end
-                 case Nothing =>
-                   true
-                 end
-
-               end
-             end
-           end
+  end &&
+  match os.lookup(4) with
+    case Just(x) =>
+      false
+    end
+    case Nothing =>
+      true
+    end
+  end &&
+  match getEmpty().lookup(1) with
+    case Just(x) =>
+      false
+    end
+    case Nothing =>
+      true
+    end
   end
 end
 fun testSetSemantics() : bool

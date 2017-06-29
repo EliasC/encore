@@ -55,7 +55,7 @@ active class Main
   end
   def main() : unit
     let
-      x = new CreditCard
+      cc = new CreditCard
       p = new CreditPass(fun (x : int) => (), fun (x : int) => x)
       p2 = new CreditPass(fun (x : int)
                             println(x)
@@ -63,16 +63,16 @@ active class Main
                           fun (x : int) => x + 1)
       show = fun (i : int) => println(i)
       ff = fun (z : int)
-             get(x ! printX())
-             x ! printMain(this, 42)
-             p.pass(x)
+             get(cc ! printX())
+             cc ! printMain(this, 42)
+             p.pass(cc)
              show(z)
              p.passMain(this)
              this.pprint(42)
              this.creditcard ! printX()
            end
     in
-      this.creditcard = x
+      this.creditcard = cc
       ff(42)
       show(42)
       p2.testFi(42)

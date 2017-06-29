@@ -18,9 +18,7 @@ active class Streamer
 end
 
 active class Combinator
-  stream interleave(s1 : Stream[int], s2 : Stream[int]) : int
-    var s1 = s1
-    var s2 = s2
+  stream interleave(var s1 : Stream[int], var s2 : Stream[int]) : int
     while not(eos(s1)) && not(eos(s2)) do
       yield(get(s1))
       yield(get(s2))

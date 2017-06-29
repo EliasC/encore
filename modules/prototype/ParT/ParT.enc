@@ -141,12 +141,12 @@ end
 fun groupParTuples[k, i](x : k, p : Par[(k, i)], cmp : (k, k) -> int) : Fut[(k, Par[i])]
   val closure = fun (acc : (k, Par[i]), elem : (k, i))
                   val accKey = acc.0
-                  val p = acc.1
+                  val p' = acc.1
                   val elemKey = elem.0
                   val elemValue = elem.1
                   val equals = cmp(accKey, elemKey)
                   if equals == 0 then
-                    (accKey, p ||| liftv(elemValue))
+                    (accKey, p' ||| liftv(elemValue))
                   else
                     acc
                   end
@@ -419,8 +419,8 @@ fun groupByKey[k,v](p: Par[(k, v)], cmp: (k, k) -> int): Par[(k, Par[v])]
                    liftf(groupParTuples(key, p, cmp))
                  end)
   val removeDistinct = fun (x: (k, Par[v]), y: (k, Par[v])) => cmp(x.0, y.0)
-  val p = bind(closure, p)
-  distinct(p, removeDistinct)
+  val p' = bind(closure, p)
+  distinct(p', removeDistinct)
 end
 
 --

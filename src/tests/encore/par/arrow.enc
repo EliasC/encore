@@ -21,32 +21,42 @@ active class Main
   def main() : unit
     val inc = fun (x : int) => x + 1
     val double = fun (x : int) => x * 2
+    val pr = arr(printResult)
 
     -- Test: first :: PArrow[a, b] -> PArrow [a, c] [b, c]
-    val ff = first[int, int, int](arr(inc))
-    val pr = arr(printResult)
-    val ffc = compose(ff, pr)
-    runArrow((4, 5), ffc)
+    do
+      val ff = first[int, int, int](arr(inc))
+      val ffc = compose(ff, pr)
+      runArrow((4, 5), ffc)
+    end
 
     -- Test: second :: PArrow[a, b] -> PArrow[(c, a), (c, b)]
-    val fsecond = second[int, int, int](arr(inc))
-    val ffc = compose(fsecond, pr)
-    runArrow((4, 5), ffc)
+    do
+      val fsecond = second[int, int, int](arr(inc))
+      val ffc = compose(fsecond, pr)
+      runArrow((4, 5), ffc)
+    end
 
     -- Test: compose :: PArrow[a, d] -> PArrow[d, c]) -> PArrow[a, c]
-    val fn = compose(arr(inc), arr(double))
-    val ffc = compose(fn, arr(pprint))
-    runArrow(4, ffc)
+    do
+      val fn = compose(arr(inc), arr(double))
+      val ffc = compose(fn, arr(pprint))
+      runArrow(4, ffc)
+    end
 
     -- Test: fanout :: PArrow[a, b] -> PArrow[a, c]) -> PArrow[a, (b, c)]
-    val fn = fanout(arr(inc), arr(double))
-    val ffc = compose(fn, arr[(int, int), (unit, unit)](printUnitTuple))
-    runArrow(5, ffc)
+    do
+      val fn = fanout(arr(inc), arr(double))
+      val ffc = compose(fn, arr[(int, int), (unit, unit)](printUnitTuple))
+      runArrow(5, ffc)
+    end
 
     -- Test: combine :: PArrow[a, b] -> PArrow[c, d]) -> PArrow[(a, c), (b, d)]
-    val fn = combine(arr(inc), arr(double))
-    val ffc = compose(fn, arr[(int, int), (unit, unit)](printUnitTuple))
-    runArrow((5, 6), ffc)
+    do
+      val fn = combine(arr(inc), arr(double))
+      val ffc = compose(fn, arr[(int, int), (unit, unit)](printUnitTuple))
+      runArrow((5, 6), ffc)
+    end
 
     -- Test: runParArrow
     --

@@ -369,8 +369,8 @@ main =
           precheckAndShowWarnings table p = do
             (precheckedAST, precheckingWarnings) <-
                 case precheckProgram table p of
-                  (Right ast, warnings)  -> return (ast, warnings)
-                  (Left error, warnings) -> do
+                  (Right ast, (warnings, _))  -> return (ast, warnings)
+                  (Left error, (warnings, _)) -> do
                     showWarnings warnings
                     abort $ show error
             showWarnings precheckingWarnings
@@ -384,8 +384,8 @@ main =
           typecheckAndShowWarnings table p = do
             (typecheckedAST, typecheckingWarnings) <-
                 case typecheckProgram table p of
-                  (Right (newEnv, ast), warnings) -> return (ast, warnings)
-                  (Left error, warnings) -> do
+                  (Right (newEnv, ast), (warnings, _)) -> return (ast, warnings)
+                  (Left error, (warnings, _)) -> do
                     showWarnings warnings
                     abort $ show error
             showWarnings typecheckingWarnings
@@ -399,8 +399,8 @@ main =
           capturecheckAndShowWarnings table p = do
             (capturecheckedAST, capturecheckingWarnings) <-
               case capturecheckProgram table p of
-                (Right (newEnv, ast), warnings) -> return (ast, warnings)
-                (Left error, warnings) -> do
+                (Right (newEnv, ast), (warnings, _)) -> return (ast, warnings)
+                (Left error, (warnings, _)) -> do
                     showWarnings warnings
                     abort $ show error
             showWarnings capturecheckingWarnings

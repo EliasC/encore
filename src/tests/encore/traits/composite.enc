@@ -30,7 +30,7 @@ active class Main
       y = foo(null)
     in
       match c with
-        case g(x) =>
+        case g(x') =>
           println("This should not happen")
         end
         case f(n) =>

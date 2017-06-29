@@ -30,11 +30,11 @@ import Data.Map.Strict(Map)
 import qualified Data.Map.Strict as Map
 
 capturecheckProgram :: Map FilePath LookupTable -> Program ->
-                       (Either TCError (Environment, Program), [TCWarning])
+                       (Either TCError (Environment, Program), ([TCWarning], [Name]))
 capturecheckProgram table p = do
   let env = buildEnvironment table p
   let reader = (\p -> (env, p)) <$> runReaderT (doCapturecheck p) env
-  runState (runExceptT reader) []
+  runState (runExceptT reader) ([], [])
 
 class CaptureCheckable a where
     -- | 'capturecheck' checks that linear references are actually
@@ -210,6 +210,9 @@ instance CaptureCheckable Expr where
       unless (isPattern e) $
              mapM_ capture args
       free e
+
+    doCapturecheck e@TupleAccess{target} =
+      return $ makeCaptured e
 
     doCapturecheck e@Match{arg, clauses} = do
         capture arg

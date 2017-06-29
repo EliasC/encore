@@ -2,7 +2,7 @@
 
 fun test_catch_all(z : Maybe[(int, int)]) : String
   match z with
-    case z =>
+    case z' =>
       "catchall"
     end
     case Just((32, 32)) =>
@@ -121,9 +121,8 @@ fun test_multiple_assignments(x : Maybe[(int, int)]) : (int, int)
   y = x
   y = z
   x' = Nothing : Maybe[(int, int)]
-  y
   match x with
-    case Just(z) =>
+    case Just(z') =>
       (23, 23)
     end
     case Nothing =>

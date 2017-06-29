@@ -454,26 +454,19 @@ instance Translatable A.Expr (State Ctx.Context (CCode Lval, CCode Stat)) where
                  [AsExpr ntarg, AsExpr nindex, asEncoreArgT ty Null]
     return (Var accessName, Seq [ttarg, tindex, theAccess, theSet])
 
-  translate (A.Consume {A.target}) = do
-    (ntarg, ttarg) <- translate target
-    lval <- mkLval target
+  translate (A.Consume {A.target = ctarget@A.FieldAccess{A.target = ftarget, A.name}}) = do
+    (ntarg, ttarg) <- translate ctarget
+    lval <- translate ftarget >>=
+            \(n, t) -> return $ Deref (StatAsExpr n t) `Dot` fieldName name
     accessName <- Ctx.genNamedSym "consume"
-    let ty = translate $ A.getType target
+    let ty = translate $ A.getType ctarget
         theRead = Assign (Decl (ty, Var accessName)) ntarg
-        theConsume = if Ty.isMaybeType $ A.getType target
+        theConsume = if Ty.isMaybeType $ A.getType ctarget
                      then Assign lval $ Amp (Nam "DEFAULT_NOTHING")
                      else Assign lval Null
     return (Var accessName, Seq [ttarg, theRead, theConsume])
-         where
-           mkLval (A.VarAccess {A.qname}) =
-               do ctx <- get
-                  case Ctx.substLkp ctx qname of
-                    Just substName -> return substName
-                    Nothing -> error $ "Expr.hs: Unbound variable: " ++ show qname
-           mkLval (A.FieldAccess {A.target, A.name}) =
-               do (ntarg, ttarg) <- translate target
-                  return (Deref (StatAsExpr ntarg ttarg) `Dot` fieldName name)
-           mkLval e = error $ "Cannot translate '" ++ show e ++ "' to a valid lval"
+
+  translate (A.Consume {A.target}) = translate target
 
   translate acc@(A.FieldAccess {A.target, A.name}) = do
     (ntarg,ttarg) <- translate target

@@ -24,7 +24,11 @@ import Control.Arrow((&&&), second)
 import Identifiers
 import AST.AST hiding (hasType, getType)
 import qualified AST.AST as AST (getType)
-import qualified AST.Util as Util (freeVariables, filter, markStatsInBody, isStatement)
+import qualified AST.Util as Util (freeVariables
+                                  ,filter
+                                  ,markStatsInBody
+                                  ,isStatement
+                                  ,hasNonTerminatingPath)
 import AST.PrettyPrinter
 import AST.Util(extend)
 import Types as Ty
@@ -35,11 +39,11 @@ import Text.Printf (printf)
 
 -- | The top-level type checking function
 typecheckProgram :: Map FilePath LookupTable -> Program ->
-                    (Either TCError (Environment, Program), [TCWarning])
+                    (Either TCError (Environment, Program), ([TCWarning], [Name]))
 typecheckProgram table p = do
   let env = buildEnvironment table p
   let reader = (\p -> (env, p)) <$> runReaderT (doTypecheck p) env
-  runState (runExceptT reader) []
+  runState (runExceptT reader) ([], [])
 
 checkForMainClass :: FilePath -> Program -> Maybe TCError
 checkForMainClass source Program{classes} =
@@ -127,6 +131,8 @@ instance Checkable Function where
           funparams = functionParams f
           funtypeparams = functionTypeParams f
           body = Util.markStatsInBody funtype funbody
+      local (addLocalFunctions funlocals) $
+            mapM_ (assertUnbound . pname) funparams
       eBody <-
         local (addTypeParameters funtypeparams .
                addParams funparams .
@@ -134,6 +140,8 @@ instance Checkable Function where
                   if isUnitType funtype
                   then typecheckNotNull body
                   else hasType body funtype
+
+      forgetConsumedVariables
       eLocals <- local (addTypeParameters funtypeparams .
                         addLocalFunctions funlocals) $
                        mapM typecheck funlocals
@@ -391,9 +399,10 @@ checkOverriding cname typeParameters methods extendedTraits = do
         addTypeParams = addTypeParameters typeParameters
         extendedThisType = abstractTraitFromTraitType (tname abstractDecl)
         addThis = extendEnvironment [(thisName, extendedThisType)]
-        typecheckWithTrait =
+        typecheckWithTrait = do
           local (addAbstractTrait . addTypeParams . addThis) $
                 typecheck method
+          forgetConsumedVariables
 
 checkManifestModes :: [Type] -> TypecheckM ()
 checkManifestModes traits = do
@@ -418,7 +427,7 @@ instance Checkable ClassDecl where
   doTypecheck c@(Class {cname, cfields, cmethods, ccomposition}) = do
 
     when (isPassiveClassType cname) $
-         unless (null $ filter isForwardMethod cmethods) $
+         unless (not (any isForwardMethod cmethods)) $
                 tcError $ ForwardInPassiveContext cname
 
     let traits = typesFromTraitComposition ccomposition
@@ -433,8 +442,6 @@ instance Checkable ClassDecl where
     mapM_ (ensureMatchingTraitFootprint cname extendedTraits) extendedTraits
     noOverlapFields cname ccomposition
 
-    checkOverriding cname typeParameters cmethods extendedTraits
-
     checkMethodExtensionAllowed
 
     -- TODO: Add namespace for trait methods
@@ -443,6 +450,8 @@ instance Checkable ClassDecl where
                mapM typecheck cfields
     emethods <- local (addTypeVars . addThis) $
                 mapM typecheck cmethods
+
+    checkOverriding cname typeParameters cmethods extendedTraits
 
     return c{cmethods = emethods, cfields = efields}
     where
@@ -486,6 +495,9 @@ instance Checkable MethodDecl where
             mparams = methodParams m
             mtypeparams = methodTypeParams m
             body = Util.markStatsInBody mType mbody
+
+        local (addLocalFunctions mlocals) $
+              mapM_ (assertUnbound . pname) mparams
         eBody <-
             local (addTypeParameters mtypeparams .
                    addParams mparams .
@@ -493,6 +505,8 @@ instance Checkable MethodDecl where
                        if isUnitType mType || isStreamMethod m
                        then typecheckNotNull body
                        else hasType body mType
+        forgetConsumedVariables
+
         when (isMatchMethod m) $
              checkPurity eBody
 
@@ -828,30 +842,29 @@ instance Checkable Expr where
     doTypecheck closure@(Closure {eparams, mty, body}) = do
       eEparams <- mapM typecheck eparams
       mty' <- mapM resolveType mty
-      eBody <- case mty' of
-                 Just expected ->
-                   if isUnitType expected then
-                     local (addParams eEparams) $
-                           typecheckNotNull body
-                   else
-                     local (addParams eEparams) $
-                           body `hasType` expected
-                 Nothing ->
-                   local (addParams eEparams) $
-                         typecheckNotNull body
       let paramNames = map pname eEparams
-          captured = Util.freeVariables (map qLocal paramNames) eBody
-          capturedVariables = map (qnlocal . fst) captured
-          capturedTypes = map snd captured
+          capturedVariables = map (qnlocal . fst) $
+                              Util.freeVariables (map qLocal paramNames) body
+      mapM_ assertUnbound paramNames
+      eBody <-
+        local (addParams eEparams . makeImmutable capturedVariables) $
+              case mty' of
+                Just expected ->
+                  if isUnitType expected then
+                      typecheckNotNull body
+                  else
+                      body `hasType` expected
+                Nothing ->
+                  typecheckNotNull body
 
       shadowingParams <- filterM doesShadow paramNames
       unless (null shadowingParams) $
-         tcError $ TypeVariableAndVariableCommonNameError shadowingParams
+          tcError $ TypeVariableAndVariableCommonNameError shadowingParams
 
-      local (addParams eEparams . makeImmutable capturedVariables) $
-            typecheck eBody -- Check for mutation of captured variables
       let returnType = AST.getType eBody
           ty = arrowType (map ptype eEparams) returnType
+          capturedTypes =
+            map snd $ Util.freeVariables (map qLocal paramNames) eBody
       modedType <- giveModes capturedTypes ty
       return $ setType modedType closure {body = eBody
                                          ,mty = mty'
@@ -918,11 +931,15 @@ instance Checkable Expr where
             return $ (eVars, eExpr):eDecls
 
           checkBinding eType (VarType x ty) = do
+            assertUnbound x
             ty' <- resolveType ty
             eType `assertSubtypeOf` ty'
+            unconsume x
             return (VarType x ty')
-          checkBinding eType (VarNoType x) =
-              return (VarNoType x)
+          checkBinding eType (VarNoType x) = do
+            assertUnbound x
+            unconsume x
+            return (VarNoType x)
 
     --  E |- en : t
     -- ------------------------
@@ -942,8 +959,22 @@ instance Checkable Expr where
     --  E |- if cond then thn else els : t
     doTypecheck ifThenElse@(IfThenElse {cond, thn, els}) =
         do eCond <- hasType cond boolType
+           currentConsumed <- gets snd
+
            eThn <- typecheck thn
+           thenConsumed <- do {xs <- gets snd; return $ xs \\ currentConsumed}
+
+           mapM_ unconsume thenConsumed
+
            eEls <- typecheck els
+           elseConsumed <- do {xs <- gets snd; return $ xs \\ currentConsumed}
+
+           unless (Util.hasNonTerminatingPath eEls) $
+                mapM_ unconsume elseConsumed
+
+           when (Util.hasNonTerminatingPath eThn) $
+                mapM_ consume thenConsumed
+
            let thnType = AST.getType eThn
                elsType = AST.getType eEls
            resultType <- matchBranches thnType elsType
@@ -999,7 +1030,7 @@ instance Checkable Expr where
         when (isActiveSingleType argType) $
           unless (isThisAccess arg) $
             tcError ActiveMatchError
-        eClauses <- mapM (checkClause argType) clauses
+        eClauses <- checkClauses argType clauses
         checkForPrivateExtractors eArg (map mcpattern eClauses)
         resultType <- checkAllHandlersSameType eClauses
         let updateClauseType m@MatchClause{mchandler} =
@@ -1046,6 +1077,7 @@ instance Checkable Expr where
         doGetPatternVars pt va@(VarAccess {qname}) = do
           when (isThisAccess va) $
             tcError ThisReassignmentError
+          assertUnbound (qnlocal qname)
           return [(qnlocal qname, pt)]
 
         doGetPatternVars pt mcp@(MaybeValue{mdt = JustData {e}})
@@ -1161,6 +1193,17 @@ instance Checkable Expr where
             | isValidPattern pattern = hasType pattern argty
             | otherwise = tcError $ InvalidPatternError pattern
 
+        checkClauses _ [] = return []
+        checkClauses pt (c:cs) = do
+          currentConsumed <- gets snd
+          c' <- checkClause pt c
+          clauseConsumed <- do {xs <- gets snd; return $ xs \\ currentConsumed}
+          mapM_ unconsume clauseConsumed
+          cs' <- checkClauses pt cs
+          when (Util.hasNonTerminatingPath (mchandler c')) $
+               mapM_ consume clauseConsumed
+          return $ c':cs'
+
         checkClause pt clause@MatchClause{mcpattern, mchandler, mcguard} = do
           vars <- getPatternVars pt mcpattern
           let withLocalEnv = local (extendEnvironmentImmutable vars)
@@ -1172,6 +1215,7 @@ instance Checkable Expr where
                           ,mcguard = eGuard}
 
     doTypecheck borrow@(Borrow{target, name, body}) = do
+      assertUnbound name
       eTarget <- typecheck target
       let targetType   = AST.getType eTarget
           borrowedType = makeStackbound targetType
@@ -1392,7 +1436,8 @@ instance Checkable Expr where
     -- ------------------------
     --  E |- name = rhs : unit
     doTypecheck assign@(Assign {lhs = lhs@VarAccess{qname}, rhs}) =
-        do eLhs <- typecheck lhs
+        do unconsume $ qnlocal qname
+           eLhs <- typecheck lhs
            varIsMutable <- asks $ isMutableLocal qname
            varIsLocal <- asks $ isLocal qname
            unless varIsMutable $
@@ -1452,17 +1497,16 @@ instance Checkable Expr where
 
       result <- findVar qname
       case result of
-        Just (qname', ty) ->
-          if isArrowType ty
-          then do
+        Just (qname', ty) -> do
+          when (isArrowType ty) $ do
             let typeParams = getTypeParameters ty
             unless (null typeParams) $
                tcError $ WrongNumberOfFunctionTypeArgumentsError qname
                          (length typeParams) 0
-            return $ setType ty var{qname = qname'}
-          else return $ setType ty var{qname = qname'}
+          whenM (isConsumed $ qnlocal qname') $
+                tcError $ ConsumedVariableError qname'
+          return $ setType ty var{qname = qname'}
         Nothing -> tcError $ UnboundVariableError qname
-
 
     --  e : t \in E
     --  isLval e
@@ -1470,29 +1514,39 @@ instance Checkable Expr where
     --  E |- consume e : t
     doTypecheck cons@(Consume {target}) =
         do eTarget <- typecheck target
-           unless (isLval eTarget) $
+           unless (isConsumable eTarget) $
                   tcError $ CannotConsumeError eTarget
            whenM (isGlobalVar eTarget) $
                  tcError $ CannotConsumeError eTarget
-           unlessM (isMutableTarget eTarget) $
-                 tcError $ ImmutableConsumeError eTarget
+           whenM (isImmutableField eTarget) $
+                 tcError $ ImmutableFieldConsumeError eTarget
+           performConsume eTarget
            let ty = AST.getType eTarget
-           unless (canBeNull ty || isMaybeType ty) $
-                  tcError $ CannotConsumeTypeError eTarget
            return $ setType ty cons {target = eTarget}
         where
+          isConsumable TupleAccess{} = True
+          isConsumable e = isLval e
+
           isGlobalVar VarAccess{qname} =
               liftM not $ asks $ isLocal qname
           isGlobalVar _ = return False
 
-          isMutableTarget VarAccess{qname} =
-              asks $ isMutableLocal qname
-          isMutableTarget FieldAccess{target, name} = do
+          isImmutableField FieldAccess{target, name} = do
               let targetType = AST.getType target
               fdecl <- findField targetType name
-              return $ not $ isValField fdecl
-          isMutableTarget _ = return True
+              return $ isValField fdecl
+          isImmutableField _ = return False
 
+          -- TODO: Remember where consumed
+          performConsume e@VarAccess{qname} =
+            consume $ qnlocal qname
+          performConsume TupleAccess{target = VarAccess{qname}} =
+            consume $ qnlocal qname
+          performConsume e@FieldAccess{} = do
+            let ty = AST.getType e
+            unless (canBeNull ty || isMaybeType ty) $
+                   tcError $ CannotConsumeTypeError e
+          performConsume e = return ()
 
     --
     -- ----------------------
@@ -1598,24 +1652,25 @@ instance Checkable Expr where
     --  E, x : int |- e : ty
     -- --------------------------
     --  E |- for x <- arr e : ty
-    doTypecheck for@(For {name, step, src, body}) =
-        do stepTyped <- doTypecheck step
-           srcTyped  <- doTypecheck src
-           let srcType = AST.getType srcTyped
+    doTypecheck for@(For {name, step, src, body}) = do
+      assertUnbound name
+      stepTyped <- doTypecheck step
+      srcTyped  <- doTypecheck src
+      let srcType = AST.getType srcTyped
 
-           unless (isArrayType srcType || isRangeType srcType) $
-             pushError src $ NonIterableError srcType
+      unless (isArrayType srcType || isRangeType srcType) $
+        pushError src $ NonIterableError srcType
 
-           let elementType = if isRangeType srcType
-                             then intType
-                             else getResultType srcType
-           bodyTyped <- typecheckBody elementType body
-           return $ setType unitType for{step = stepTyped
-                                        ,src  = srcTyped
-                                        ,body = bodyTyped}
-        where
-          addIteratorVariable ty = extendEnvironmentImmutable [(name, ty)]
-          typecheckBody ty = local (addIteratorVariable ty) . typecheck
+      let elementType = if isRangeType srcType
+                        then intType
+                        else getResultType srcType
+      bodyTyped <- typecheckBody elementType body
+      return $ setType unitType for{step = stepTyped
+                                   ,src  = srcTyped
+                                   ,body = bodyTyped}
+      where
+        addIteratorVariable ty = extendEnvironmentImmutable [(name, ty)]
+        typecheckBody ty = local (addIteratorVariable ty) . typecheck
 
    ---  |- ty
     --  E |- size : int
@@ -1635,10 +1690,10 @@ instance Checkable Expr where
 
         when (null args) $
              tcError EmptyArrayLiteralError
-        eArg1 <- doTypecheck (head args)
-        let ty = AST.getType eArg1
-        eArgs <- mapM (`hasType` ty) args
-        return $ setType (arrayType ty) arr{args = eArgs}
+        eHead <- doTypecheck (head args)
+        let ty = AST.getType eHead
+        eTail <- mapM (`hasType` ty) $ tail args
+        return $ setType (arrayType ty) arr{args = eHead:eTail}
 
     --  E |- target : [ty]
     --  E |- index : int
@@ -2266,8 +2321,5 @@ typecheckParametricFun argTypes eSeqFunc
   | otherwise = error $ "Function that is callable but distinct from" ++
                         " 'VarAccess' or 'FunctionAsValue' AST node used."
   where
-    isVarAccess VarAccess{} = True
-    isVarAccess _ = False
-
     isFunctionAsValue FunctionAsValue{} = True
     isFunctionAsValue _ = False

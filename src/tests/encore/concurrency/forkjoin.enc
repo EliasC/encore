@@ -2,11 +2,11 @@
 
 import Task
 fun sum(arr : [int], from : int, to : int) : int
-  var sum = 0
+  var s = 0
   repeat i <- to - from do
-    sum = sum + arr(from + i)
+    s = s + arr(from + i)
   end
-  sum
+  s
 end
 fun sum_async(arr : [int], from : int, to : int) : int
   if to - from > 1024 then

@@ -4,7 +4,7 @@ active class Main
   def main() : unit
     val x = 42
     println("x = {}", x)
-    val f = fun (x : int) => x + 1
+    val f = fun (y : int) => y + 1
     println("f(x) = {}", f(x))
   end
 end

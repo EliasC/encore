@@ -756,6 +756,10 @@ isFunctionCall :: Expr -> Bool
 isFunctionCall FunctionCall {} = True
 isFunctionCall _ = False
 
+isVarAccess :: Expr -> Bool
+isVarAccess VarAccess {} = True
+isVarAccess _ = False
+
 isThisAccess :: Expr -> Bool
 isThisAccess VarAccess {qname = QName{qnlocal}} = qnlocal == Name "this"
 isThisAccess _ = False

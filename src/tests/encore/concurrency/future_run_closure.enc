@@ -23,7 +23,7 @@ active class Main
     val t2 = new Test()
     val f1 = t ! createMoney()
     this.await(f1)
-    val f2 = f1 ~~> fun (m: Money) => { t2 ! update(m) ~~> fun (m: Money) => m }
+    val f2 = f1 ~~> fun (m: Money) => { t2 ! update(m) ~~> fun (m2: Money) => m2 }
     this.await(f2)
     val money = get(get(f2))
     println(money.amount)
