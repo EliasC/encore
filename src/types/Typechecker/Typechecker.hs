@@ -1284,6 +1284,16 @@ instance Checkable Expr where
                return $ setType unitType yield {val = eVal}
              _ -> tcError $ NonStreamingContextError yield
 
+    doTypecheck atomic@(Atomic {target, name, body}) = do
+      eTarget <- typecheck target
+      let targetType = AST.getType eTarget
+      isActive <- isActiveType targetType
+      unless isActive $
+             tcError $ SimpleError "Target of atomic must be active"
+      eBody <- local (extendEnvironmentImmutable [(name, targetType)]) $
+                     typecheck body
+      let ty = AST.getType eBody
+      return $ setType ty atomic {target = eTarget, body = eBody}
 
     --  E |- expr : t
     --  E |- currentMethod : _ -> t

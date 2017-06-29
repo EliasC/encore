@@ -303,6 +303,10 @@ ppExpr Async {body=body@(Seq {})} =
     indent (ppBody body) $+$
   "end"
 ppExpr Async {body} = "async" <> parens (ppExpr body)
+ppExpr Atomic {target, name, body} =
+  "atomic" <+> ppExpr target <+> "as" <+> ppName name $+$
+    indent (ppBody body) $+$
+  "end"
 ppExpr (MaybeValue _ (JustData a)) = "Just" <> parens (ppExpr a)
 ppExpr (MaybeValue _ NothingData) = "Nothing"
 ppExpr Tuple {args} = parens (commaSep (map ppExpr args))

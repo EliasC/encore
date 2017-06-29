@@ -998,6 +998,7 @@ expr = notFollowedBy nl >>
      <|> match
      <|> borrow
      <|> blockedTask
+     <|> atomicBlock
      <|> for
      <|> while
      <|> repeat
@@ -1452,6 +1453,15 @@ expr = notFollowedBy nl >>
         emeta <- buildMeta
         reserved "async"
         return $ \body -> Async{emeta, body}
+
+      atomicBlock = blockedConstruct $ do
+        emeta <- buildMeta
+        reserved "atomic"
+        target <- expression
+        reserved "as"
+        name <- Name <$> identifier
+        reserved "do"
+        return $ \body -> Atomic{emeta, target, name, body}
 
       arraySize = do
         emeta <- buildMeta

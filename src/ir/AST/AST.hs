@@ -614,6 +614,10 @@ data Expr = Skip {emeta :: Meta Expr}
                          runassoc :: Bool}
           | Async {emeta :: Meta Expr,
                    body :: Expr}
+          | Atomic {emeta :: Meta Expr,
+                    target :: Expr,
+                    name :: Name,
+                    body :: Expr}
           | Return {emeta :: Meta Expr,
                     val :: Expr}
           | MaybeValue {emeta :: Meta Expr,

@@ -1087,6 +1087,16 @@ instance Translatable A.Expr (State Ctx.Context (CCode Lval, CCode Stat)) where
       let eosCall = Call streamClose [encoreCtxVar, streamHandle]
       in return (unit, Seq [Statement eosCall, Return Skip])
 
+  translate atomic@(A.Atomic{A.target, A.name, A.body}) = do
+    (ntarg, ttarg) <- translate target
+    tmp <- Var <$> Ctx.genNamedSym (show name)
+    let targetType = A.getType target
+        theAssign = Assign (Decl (translate targetType, tmp)) ntarg
+    substituteVar name tmp
+    (nbody, tbody) <- translate body
+    unsubstituteVar name
+    return (nbody, Seq [ttarg, theAssign, tbody])
+
   translate ret@(A.Return{A.val}) =
       do (nval, tval) <- translate val
          eCtx <- gets Ctx.getExecCtx
