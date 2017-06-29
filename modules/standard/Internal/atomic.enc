@@ -1,0 +1,10 @@
+module Internal
+
+typedef AtomicQ = EMBED void * END
+
+active class AtomicWrapper[t]
+  val queue : AtomicQ
+  def init() : unit
+    ()
+  end
+end
