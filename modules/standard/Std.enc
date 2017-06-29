@@ -1,5 +1,12 @@
 module Std
 
+EMBED
+#include "./src/runtime/pony/libponyrt/actor/messageq.h"
+#include <stdatomic.h>
+
+extern pony_msg_t* ponyint_messageq_pop(messageq_t* q);
+END
+
 typedef AtomicQ = EMBED void * END
 
 -- This is currenly just a marker interface. In the future, id
@@ -16,6 +23,17 @@ end
 
 active trait Actor
   def atomic(q : AtomicQ) : unit
+    EMBED (unit)
+      12;
+    END    
+  end
+  def perform[t](f : () -> t) : t
+    f()
+  end
+end
+
+active class Main
+  def main() : unit
     ()
   end
 end

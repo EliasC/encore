@@ -2,7 +2,7 @@ module Atomic
 import Std
 
 EMBED
-extern void ponyint_messageq_init(void *q);
+#include "./src/runtime/pony/libponyrt/actor/messageq.h"
 END
 
 -- TODO: Tidy up this crap

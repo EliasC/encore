@@ -48,7 +48,7 @@ static bool handle_message(pony_ctx_t** ctx, pony_actor_t* actor,
   pony_msg_t* msg)
 {
   if (!has_flag(actor, FLAG_SYSTEM)) {
-    if (encore_actor_handle_message_hook((encore_actor_t*)actor, msg)) {
+    if (encore_actor_handle_message_hook(ctx, (encore_actor_t*)actor, msg)) {
       return true;
     }
   }

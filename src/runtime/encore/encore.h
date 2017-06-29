@@ -69,6 +69,8 @@ typedef enum {
   _ENC__MSG_RESUME_GET, /// This should probably go
   _ENC__MSG_RESUME_SUSPEND,
   _ENC__MSG_RESUME_AWAIT,
+  _ENC__MSG_ATOMIC_START,
+  _ENC__MSG_ATOMIC_STOP,
   _ENC__MSG_RUN_CLOSURE,
   _ENC__MSG_MAIN,
 } encore_msg_id;
@@ -140,7 +142,7 @@ int encore_start(int argc, char** argv, pony_type_t *type);
 
 void actor_unlock(encore_actor_t *actor);
 bool encore_actor_run_hook(encore_actor_t *actor);
-bool encore_actor_handle_message_hook(encore_actor_t *actor, pony_msg_t* msg);
+bool encore_actor_handle_message_hook(pony_ctx_t **ctx, encore_actor_t *actor, pony_msg_t* msg);
 void actor_block(pony_ctx_t **ctx, encore_actor_t *actor);
 void actor_set_resume(encore_actor_t *actor);
 

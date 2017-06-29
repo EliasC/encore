@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <ucontext.h>
 #include <stdio.h>
+#include <stdatomic.h>
 
 #ifdef LAZY_IMPL
 __attribute__ ((noreturn))
@@ -35,8 +36,12 @@ static void actor_resume_context(encore_actor_t *actor, ucontext_t *ctx);
 extern void public_run(pony_actor_t *actor);
 
 extern bool pony_system_actor(pony_actor_t *actor);
+extern void try_gc(pony_ctx_t* ctx, pony_actor_t* actor);
 static void pony_sendargs(pony_ctx_t *ctx, pony_actor_t* to, uint32_t id,
     int argc, char** argv);
+
+extern bool has_flag(pony_actor_t* actor, uint8_t flag);
+extern bool handle_message(pony_ctx_t** ctx, pony_actor_t* actor,   pony_msg_t* msg);
 
 #define MAX_IN_POOL 4
 
@@ -395,22 +400,52 @@ bool encore_actor_run_hook(encore_actor_t *actor)
   return false;
 }
 
-bool encore_actor_handle_message_hook(encore_actor_t *actor, pony_msg_t* msg)
+bool encore_actor_handle_message_hook(pony_ctx_t **ctx, encore_actor_t *actor, pony_msg_t* msg)
 {
   switch(msg->id)
   {
-    case _ENC__MSG_RESUME_SUSPEND:
-      actor_suspend_resume(actor, ((pony_msgp_t*)msg)->p);
-      return true;
+  case _ENC__MSG_RESUME_SUSPEND:
+    actor_suspend_resume(actor, ((pony_msgp_t*)msg)->p);
+    return true;
 
-    case _ENC__MSG_RESUME_AWAIT:
-      actor_await_resume(actor, ((pony_msgp_t*)msg)->p);
-      return true;
+  case _ENC__MSG_RESUME_AWAIT:
+    actor_await_resume(actor, ((pony_msgp_t*)msg)->p);
+    return true;
 
-    case _ENC__MSG_RUN_CLOSURE:
-      assert(-1);
-      // run_closure(msg->argv[0].p, msg->argv[1].p, msg->argv[2].p);
+  case _ENC__MSG_ATOMIC_START:
+    {
+      pony_msg_t *atomic_msg = msg;
+      
+      messageq_t *q = ((pony_msgp_t*)msg)->p; // TODO: this should be something else
+      int app = 0;
+      int batch = 100;
+      pony_msg_t* head = atomic_load_explicit(&(q->head), memory_order_relaxed);
+
+      while((msg = ponyint_messageq_pop(q)) != NULL)
+        {
+          if(handle_message(ctx, (pony_actor_t *)actor, msg))
+            {
+              // If we handle an application message, try to gc.
+              app++;
+              try_gc(*ctx, (pony_actor_t *)actor);
+              if(app == batch)
+                return !has_flag((pony_actor_t *)actor, 1 << 3); // TODO: 1 << 3 replace by FLAG_UNSCHEDULED
+            }
+          // Stop handling a batch if we reach the head we found when we were
+          // scheduled.
+          if(msg == head)
+            break;
+        }
+
+      pony_continuation((pony_actor_t *)actor, atomic_msg);
+      
       return true;
+    }
+    
+  case _ENC__MSG_RUN_CLOSURE:
+    assert(-1);
+    // run_closure(msg->argv[0].p, msg->argv[1].p, msg->argv[2].p);
+    return true;
   }
   return false;
 }
